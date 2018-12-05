@@ -1,6 +1,6 @@
 <!--The content below is only a placeholder and can be replaced.-->
 <div style="text-align:center">
-  <div>
+  <div *ngIf="isAuthenticated">
     <p>
       <label for="username">UserName</label>
       <input type="text" [(ngModel)]="username"/>
@@ -10,8 +10,13 @@
     </p>
     <p>
       <input type="text" [(ngModel)]="message" />
-      <input type="button" value="Send" (click)="Send()">
+      <input type="button" value="Send" (click)="Send()"/>
     </p>
+  </div>
+  <div *ngIf="!isAuthenticated">
+    <input type="text" [(ngModel)]="username"/>
+    <input type="password" [(ngModel)]="password"/>
+    <button type="button" (click)="authenticate()">Enter</button>
   </div>
 </div>  
 
