@@ -15,7 +15,12 @@ interface MessageResponse {
   wasReaded: string;
   sendedOn: string;
   readedOn: string;
-  content: string;
+  contents: MessageContent[];
+}
+
+interface MessageContent {
+  type: string;
+  payload: string;
 }
 
 @Component({
@@ -35,16 +40,17 @@ export class AppComponent implements OnInit {
   @Input() message: string;
   userId: string;
   isAuthenticated: boolean = false;
-  messages: string[] = [];
+  messages: MessageContent[] = [];
+  issueId: string;
 
   constructor(private _httpclient: HttpClient, private oidcService: OAuthService) {
     this.oidcService.clientId = 'native.client1';
     this.oidcService.scope = 'openid profile roles email apiProfile GrowerPortal';
     this.oidcService.setStorage(sessionStorage);
     this.oidcService.dummyClientSecret = 'ApiSecret';
-    this.oidcService.issuer = "https://localhost:5002";
+    this.oidcService.issuer = "http://localhost:5003";
     this.oidcService.oidc = false;
-    this.oidcService.loadDiscoveryDocument('https://localhost:5002/.well-known/openid-configuration').then(() => { })
+    this.oidcService.loadDiscoveryDocument('http://localhost:5003/.well-known/openid-configuration').then(() => { })
   }
 
   ngOnInit(): void {
@@ -66,10 +72,22 @@ export class AppComponent implements OnInit {
 
   startConnection() {
     this._httpclient.get(
-      'http://localhost:5000/api/issue/717DB705-DE2F-4592-9DD3-74530526F91A', 
+      'http://localhost:5000/issue',
       { headers: new HttpHeaders().set("Authorization", "Bearer " + this._token) })
-      .subscribe((s :Issue) => 
-        this.messages = s.messages.map(s=>s.content));
+      .subscribe((s: Issue[]) => {
+        this.issueId = s[0].id;
+        this.messages = s[0].messages
+          .map(s => s.contents)
+          .reduce((a, d) => a.concat(d))
+          .map(a=>
+            {
+              if(a.type.toLowerCase()==='image')
+              {
+                a.payload = "data:image/png;base64," + a.payload;
+              }
+              return a;
+            });
+      });
 
     this._connection = new SignalR.HubConnectionBuilder()
       .withUrl(this._url, { accessTokenFactory: () => this._token })
@@ -79,23 +97,27 @@ export class AppComponent implements OnInit {
       .then(() => console.log("Connection Established!!! c:"))
       .catch(err => console.log(err.message));
 
-    this._connection.on("RecieveMessage", (message: string) => this.messages.push(`${message}`));
+    this._connection.on("RecieveMessage", (issueId: string, message: MessageContent[]) =>
+      message.forEach(m => this.messages.push(m)));
   }
 
   Send() {
     let reciever: string;
-    if (this.userId.toUpperCase() == '4201BD87-6FAF-487B-8647-3D9CB6266EC5')
-      reciever = '47971889-FC84-4CCD-A0B2-367C50C5282F';
+    if (this.userId.toUpperCase() == 'E3F5D5E8-7F7F-464E-838C-0557960AB182')
+      reciever = 'CC25C7D0-64F9-4463-9267-00052A0289F0';
     else
-      reciever = '4201BD87-6FAF-487B-8647-3D9CB6266EC5';
+      reciever = 'E3F5D5E8-7F7F-464E-838C-0557960AB182';
+
+    var message = { type: "string", payload: this.message };
 
     this._connection.invoke(
       "sendMessage",
       reciever,
-      '717DB705-DE2F-4592-9DD3-74530526F91A',
-      this.message);
-    
-    this.messages.push(this.message);
+      this.issueId,
+      [message]
+    );
+
+    this.messages.push(message);
     this.message = '';
   }
 }
